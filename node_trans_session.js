@@ -15,6 +15,9 @@ class NodeTransSession extends EventEmitter {
   constructor(conf) {
     super();
     this.conf = conf;
+
+    this.ffmpeg_allowed = true;
+    this.ffmpeg_exec = null;
   }
 
   run() {
@@ -62,40 +65,65 @@ class NodeTransSession extends EventEmitter {
     Array.prototype.push.apply(argv, this.conf.acParam);
     Array.prototype.push.apply(argv, ['-f', 'tee', '-map', '0:a?', '-map', '0:v?', mapStr]);
     argv = argv.filter((n) => { return n }); //去空
-    this.ffmpeg_exec = spawn(this.conf.ffmpeg, argv);
-    this.ffmpeg_exec.on('error', (e) => {
-      Logger.ffdebug(e);
-    });
 
-    this.ffmpeg_exec.stdout.on('data', (data) => {
-      Logger.ffdebug(`FF输出：${data}`);
-    });
+    let me = this;
+    let spawnCount = 0;
+    let spawnMax = 60;
+    let spawnFfmpeg = function() {
+      if(! me.ffmpeg_allowed) return;
 
-    this.ffmpeg_exec.stderr.on('data', (data) => {
-      Logger.ffdebug(`FF输出：${data}`);
-    });
-
-    this.ffmpeg_exec.on('close', (code) => {
-      Logger.log('[Transmuxing end] ' + this.conf.streamPath);
-      this.emit('end');
-      fs.readdir(ouPath, function (err, files) {
-        if (!err) {
-          files.forEach((filename) => {
-            if (filename.endsWith('.ts')
-              || filename.endsWith('.m3u8')
-              || filename.endsWith('.mpd')
-              || filename.endsWith('.m4s')
-              || filename.endsWith('.tmp')) {
-              fs.unlinkSync(ouPath + '/' + filename);
-            }
-          })
-        }
+      me.ffmpeg_exec = spawn(me.conf.ffmpeg, argv);
+      me.ffmpeg_exec.on('error', (e) => {
+        Logger.ffdebug(e);
       });
-    });
+
+      me.ffmpeg_exec.stdout.on('data', (data) => {
+        Logger.ffdebug(`FF输出：${data}`);
+      });
+
+      me.ffmpeg_exec.stderr.on('data', (data) => {
+        Logger.ffdebug(`FF输出：${data}`);
+      });
+
+      me.ffmpeg_exec.on('close', (code) => {
+        Logger.log('[Transmuxing end] ' + me.conf.streamPath);
+        // me.emit('end');
+        fs.readdir(ouPath, function (err, files) {
+          if (!err) {
+            files.forEach((filename) => {
+              if (filename.endsWith('.ts')
+                || filename.endsWith('.m3u8')
+                || filename.endsWith('.mpd')
+                || filename.endsWith('.m4s')
+                || filename.endsWith('.tmp')) {
+                fs.unlinkSync(ouPath + '/' + filename);
+              }
+            })
+          }
+
+          // It could of ended for no reason...
+          if(spawnCount < spawnMax)
+          {
+            ++spawnCount;
+            setTimeout(function(){
+              spawnFfmpeg();
+            }, 1 * 1000);
+          }
+        });
+      });
+    };
+
+    return spawnFfmpeg();
   }
 
   end() {
-    this.ffmpeg_exec.kill();
+    this.ffmpeg_allowed = false;
+
+    if(this.ffmpeg_exec != null)
+    {
+      this.ffmpeg_exec.kill();
+      this.ffmpeg_exec = null;
+    }
   }
 }
 
