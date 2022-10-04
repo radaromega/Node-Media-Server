@@ -45,6 +45,8 @@ class NodeTransSession extends EventEmitter {
     }
     if (this.conf.hls) {
       this.conf.hlsFlags = this.conf.hlsFlags ? this.conf.hlsFlags : '';
+      let randomId = (Math.random() + 1).toString(36).substring(2);
+      this.conf.hlsFlags = this.conf.hlsFlags.replace('HLS_SEGMENT_FILENAME',`${ouPath}/segment-${randomId}-%d.ts`);
       let hlsFileName = 'index.m3u8';
       let mapHls = `${this.conf.hlsFlags}${ouPath}/${hlsFileName}|`;
       mapStr += mapHls;
