@@ -59,6 +59,8 @@ class NodeTransSession extends EventEmitter {
     }
     mkdirp.sync(ouPath);
     let argv = ['-y', '-i', inPath];
+    // Support for datetime format
+    Array.prototype.push.apply(argv, ['-strftime', '1']);
     Array.prototype.push.apply(argv, ['-c:v', vc]);
     Array.prototype.push.apply(argv, this.conf.vcParam);
     Array.prototype.push.apply(argv, ['-c:a', ac]);
